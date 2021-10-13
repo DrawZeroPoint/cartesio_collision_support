@@ -181,7 +181,7 @@ ConstraintPtr OpenSotCollisionConstraintAdapter::constructConstraint()
   _model->getJointPosition(q);
 
   std::string base_link = "base_link";
-  std::map<std::string, boost::shared_ptr<fcl::CollisionObjectd>> env_collisions;
+  std::map<std::string, boost::shared_ptr<fcl::CollisionObjectd>> env_collisions{};
 
   //computer_ = boost::make_shared<ComputeLinksDistance>(const_cast<XBot::ModelInterface&>(*_model));
 

@@ -13,13 +13,6 @@ find_package(PCL 1.7 QUIET COMPONENTS   common
 
 set(CMAKE_CXX_STANDARD 14)
 
-find_library(OPENSOT_LIBRARY openSoT HINTS /opt/xbot/lib REQUIRED)
-if (OPENSOT_LIBRARY)
-  MESSAGE(NOTICE "Found OpenSOT LIB ${OPENSOT_LIBRARY}")
-else ()
-  MESSAGE(FATAL ERROR "Not Found OpenSOT LIB ${OPENSOT_LIBRARY}")
-endif ()
-
 catkin_package()
 
 include_directories(
@@ -35,7 +28,6 @@ target_link_libraries(cartesio_collision_support
     ${moveit_ros_planning_LIBRARIES}
     ${moveit_ros_planning_interface_LIBRARIES}
     ${PCL_LIBRARIES}
-    ${OPENSOT_LIBRARY}
 )
 
 install(TARGETS cartesio_collision_support
