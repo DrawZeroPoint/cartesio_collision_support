@@ -43,7 +43,7 @@ public:
      * This signature is required to register this class with CartesIO
      * (see cpp)
      */
-    CollisionTaskImpl(YAML::Node node, Context::ConstPtr context);
+    CollisionTaskImpl(YAML::Node node, const Context::ConstPtr& context);
 
     /**
      * @brief validates parameter correctness
@@ -109,17 +109,17 @@ public:
 
 private:
 
-    std::list<std::pair<std::string, std::string>> _pairs;
-    std::list<std::string> _env_links;
-    double _bound_scaling;
-    double _min_dist;
+    std::list<std::pair<std::string, std::string>> pairs_;
+    std::list<std::string> env_links_;
+    double bound_scaling_;
+    double min_dist_;
 
-    urdf::ModelConstSharedPtr _coll_urdf;
-    srdf::ModelConstSharedPtr _coll_srdf;
+    urdf::ModelConstSharedPtr urdf_model_ptr_;
+    srdf::ModelConstSharedPtr srdf_model_ptr_;
 
     std::list<WorldUpdateCallback> _world_upd_cb;
 
-    std::list<LinkPairDistance> _distance_list;
+    std::list<LinkPairDistance> link_pair_distance_list_;
 
 };
 
@@ -146,7 +146,7 @@ private:
     bool apply_planning_scene_service(moveit_msgs::ApplyPlanningScene::Request& req,
                                       moveit_msgs::ApplyPlanningScene::Response& res);
 
-    CollisionTaskImpl::Ptr _ci_coll;
+    CollisionTaskImpl::Ptr ci_collision_task_;
 
     ros::ServiceServer _world_upd_srv;
 
@@ -160,7 +160,7 @@ private:
 
 /**
  * @brief The OpenSotCollisionConstraintAdapter class implements
- * the bridge between Cartesio and OpenSot, so that the latter
+ * the bridge between CartesIO and OpenSot, so that the latter
  * gets the information to construct, configure, and run the
  * collision avoidance constraint
  */
@@ -170,25 +170,27 @@ class OpenSotCollisionConstraintAdapter :
 
 public:
 
-    OpenSotCollisionConstraintAdapter(ConstraintDescription::Ptr ci_task,
+    OpenSotCollisionConstraintAdapter(const ConstraintDescription::Ptr& ci_task,
                                       Context::ConstPtr context);
 
     OpenSoT::OptvarHelper::VariableVector getRequiredVariables() const override;
 
-    virtual ConstraintPtr constructConstraint() override;
+    ConstraintPtr constructConstraint() override;
 
-    virtual void update(double time, double period) override;
+    void update(double time, double period) override;
 
-    virtual void processSolution(const Eigen::VectorXd& solution) override;
+    void processSolution(const Eigen::VectorXd& solution) override;
 
 protected:
 
-    CollisionConstrSoT::Ptr _opensot_coll;
+    CollisionConstrSoT::Ptr opensot_collision_ptr_;
 
 private:
 
-    CollisionTaskImpl::Ptr _ci_coll;
+    CollisionTaskImpl::Ptr ci_collision_task_;
     Eigen::VectorXd _x;
+
+    ComputeLinksDistance *computer_;
 
 };
 
