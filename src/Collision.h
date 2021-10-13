@@ -25,103 +25,109 @@ namespace XBot { namespace Cartesian { namespace collision {
  * @brief The CollisionTaskImpl class implements CartesIO's description
  * of a collision avoidance task or constraint
  */
-class CollisionTaskImpl : public virtual ConstraintDescription,
-        public TaskDescriptionImpl
-{
+      class CollisionTaskImpl : public virtual ConstraintDescription,
+                                public TaskDescriptionImpl
+      {
 
-public:
+      public:
 
-    CARTESIO_DECLARE_SMART_PTR(CollisionTaskImpl);
+        CARTESIO_DECLARE_SMART_PTR(CollisionTaskImpl);
 
-    /**
-     * @brief The callback type to listen to world update events
-     */
-    typedef std::function<void(const moveit_msgs::PlanningSceneWorld&)> WorldUpdateCallback;
+        /**
+         * @brief The callback type to listen to world update events
+         */
+        typedef std::function<void(const moveit_msgs::PlanningSceneWorld&)> WorldUpdateCallback;
 
-    /**
-     * @brief CollisionTaskImpl constructor
-     * This signature is required to register this class with CartesIO
-     * (see cpp)
-     */
-    CollisionTaskImpl(YAML::Node node, const Context::ConstPtr& context);
+        /**
+         * @brief CollisionTaskImpl constructor
+         * This signature is required to register this class with CartesIO
+         * (see cpp)
+         */
+        CollisionTaskImpl(YAML::Node node, const Context::ConstPtr& context);
 
-    /**
-     * @brief validates parameter correctness
-     */
-    bool validate() override;
+        /**
+         * @brief validates parameter correctness
+         */
+        bool validate() override;
 
 
-    /* Getters for task parameters */
+        /* Getters for task parameters */
 
-    /**
-     * @brief bound scaling getter function; the bound scaling
-     * is always smaller than one, its goal is to implement
-     * early constraint activation by limiting the constraint
-     * approach velocity
-     */
-    double getBoundScaling() const;
+        /**
+         * @brief bound scaling getter function; the bound scaling
+         * is always smaller than one, its goal is to implement
+         * early constraint activation by limiting the constraint
+         * approach velocity
+         */
+        double getBoundScaling() const;
 
-    /**
-     * @brief distance threshold getter function; it represents
-     * the minimum valid distance between collision objects
-     */
-    double getDistanceThreshold() const;
+        /**
+         * @brief distance threshold getter function; it represents
+         * the minimum valid distance between collision objects
+         */
+        double getDistanceThreshold() const;
 
-    /**
-     * @brief getter for the list of collision pairs that must be taken into
-     * account by the constraint
-     */
-    std::list<std::pair<std::string, std::string>> getWhiteList() const;
+        /**
+         * @brief getter for the list of collision pairs that must be taken into
+         * account by the constraint
+         */
+        std::list<std::pair<std::string, std::string>> getWhiteList() const;
 
-    /**
-     * @brief getter for the list of links that must be checked for collision
-     * against the environment
-     */
-    std::list<std::string> getEnvironmentWhiteList() const;
+        /**
+         * @brief getter for the list of links that must be checked for self collision
+         */
+        std::vector<std::string> getRobotWhiteList() const;
 
-    /**
-     * @brief collision urdf used to override the default urdf collision
-     * information
-     */
-    urdf::ModelConstSharedPtr getCollisionUrdf() const;
+        /**
+         * @brief getter for the list of links that must be checked for collision
+         * against the environment
+         */
+        std::list<std::string> getEnvironmentWhiteList() const;
 
-    /**
-     * @brief collision srdf used to override the default urdf collision
-     * information
-     */
-    srdf::ModelConstSharedPtr getCollisionSrdf() const;
+        /**
+         * @brief collision urdf used to override the default urdf collision
+         * information
+         */
+        urdf::ModelConstSharedPtr getCollisionUrdf() const;
 
-    /**
-     * @brief register a callback to be invoked whenever the world collision
-     * model changes
-     */
-    void registerWorldUpdateCallback(WorldUpdateCallback f);
+        /**
+         * @brief collision srdf used to override the default urdf collision
+         * information
+         */
+        srdf::ModelConstSharedPtr getCollisionSrdf() const;
 
-    /**
-     * @brief worldUpdated must be called whenever the world collision
-     * model changes; it is mostly for internal use, don't call it
-     * unless you are sure!
-     */
-    void worldUpdated(const moveit_msgs::PlanningSceneWorld& psw);
+        /**
+         * @brief register a callback to be invoked whenever the world collision
+         * model changes
+         */
+        void registerWorldUpdateCallback(WorldUpdateCallback f);
 
-    void setLinkPairDistances(const std::list<LinkPairDistance>& distance_list);
-    const std::list<LinkPairDistance>& getLinkPairDistances();
+        /**
+         * @brief worldUpdated must be called whenever the world collision
+         * model changes; it is mostly for internal use, don't call it
+         * unless you are sure!
+         */
+        void worldUpdated(const moveit_msgs::PlanningSceneWorld& psw);
 
-private:
+        void setLinkPairDistances(const std::list<LinkPairDistance>& distance_list);
+        const std::list<LinkPairDistance>& getLinkPairDistances();
 
-    std::list<std::pair<std::string, std::string>> pairs_;
-    std::list<std::string> env_links_;
-    double bound_scaling_;
-    double min_dist_;
+      private:
 
-    urdf::ModelConstSharedPtr urdf_model_ptr_;
-    srdf::ModelConstSharedPtr srdf_model_ptr_;
+        std::list<std::pair<std::string, std::string>> pairs_;
+        std::list<std::string> env_links_;
+        std::vector<std::string> robot_links_;
+        double bound_scaling_;
+        double min_dist_;
 
-    std::list<WorldUpdateCallback> _world_upd_cb;
+        urdf::ModelConstSharedPtr urdf_model_ptr_;
+        srdf::ModelConstSharedPtr srdf_model_ptr_;
 
-    std::list<LinkPairDistance> link_pair_distance_list_;
+        std::list<WorldUpdateCallback> _world_upd_cb;
 
-};
+        std::list<LinkPairDistance> link_pair_distance_list_;
+
+      };
 
 /**
  * @brief The CollisionRos class implements the Ros API for
@@ -129,34 +135,34 @@ private:
  * At the moment, it just provides world geometry updating
  * and monitoring tools via moveit's PlanningScene
  */
-class CollisionRos : public ServerApi::TaskRos
-{
+      class CollisionRos : public ServerApi::TaskRos
+      {
 
-public:
+      public:
 
-    CollisionRos(TaskDescription::Ptr task,
-                 RosContext::Ptr context);
+        CollisionRos(const TaskDescription::Ptr& task,
+                     const RosContext::Ptr& context);
 
-    void run(ros::Time time) override;
+        void run(ros::Time time) override;
 
-    void setVisualizeDistances(const bool flag);
+        void setVisualizeDistances(const bool flag);
 
-private:
+      private:
 
-    bool apply_planning_scene_service(moveit_msgs::ApplyPlanningScene::Request& req,
-                                      moveit_msgs::ApplyPlanningScene::Response& res);
+        bool apply_planning_scene_service(moveit_msgs::ApplyPlanningScene::Request& req,
+                                          moveit_msgs::ApplyPlanningScene::Response& res);
 
-    CollisionTaskImpl::Ptr ci_collision_task_;
+        CollisionTaskImpl::Ptr ci_collision_task_;
 
-    ros::ServiceServer _world_upd_srv;
+        ros::ServiceServer _world_upd_srv;
 
-    std::unique_ptr<Planning::PlanningSceneWrapper> _ps;
+        std::unique_ptr<Planning::PlanningSceneWrapper> _ps;
 
-    bool _visualize_distances;
+        bool _visualize_distances;
 
-    ros::Publisher _vis_pub;
+        ros::Publisher _vis_pub;
 
-};
+      };
 
 /**
  * @brief The OpenSotCollisionConstraintAdapter class implements
@@ -164,38 +170,38 @@ private:
  * gets the information to construct, configure, and run the
  * collision avoidance constraint
  */
-class OpenSotCollisionConstraintAdapter :
-        public OpenSotConstraintAdapter
-{
+      class OpenSotCollisionConstraintAdapter :
+          public OpenSotConstraintAdapter
+      {
 
-public:
+      public:
 
-    OpenSotCollisionConstraintAdapter(const ConstraintDescription::Ptr& ci_task,
-                                      Context::ConstPtr context);
+        OpenSotCollisionConstraintAdapter(const ConstraintDescription::Ptr& ci_task,
+                                          Context::ConstPtr context);
 
-    OpenSoT::OptvarHelper::VariableVector getRequiredVariables() const override;
+        OpenSoT::OptvarHelper::VariableVector getRequiredVariables() const override;
 
-    ConstraintPtr constructConstraint() override;
+        ConstraintPtr constructConstraint() override;
 
-    void update(double time, double period) override;
+        void update(double time, double period) override;
 
-    void processSolution(const Eigen::VectorXd& solution) override;
+        void processSolution(const Eigen::VectorXd& solution) override;
 
-protected:
+      protected:
 
-    CollisionConstrSoT::Ptr opensot_collision_ptr_;
+        CollisionConstrSoT::Ptr opensot_collision_ptr_;
 
-private:
+      private:
 
-    CollisionTaskImpl::Ptr ci_collision_task_;
-    Eigen::VectorXd _x;
+        CollisionTaskImpl::Ptr ci_collision_task_;
+        Eigen::VectorXd _x;
 
-    ComputeLinksDistance *computer_;
+        boost::shared_ptr<ComputeLinksDistance> computer_;
 
-};
-
-
+      };
 
 
-}}}
+
+
+    }}}
 #endif // COLLISION_H

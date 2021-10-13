@@ -37,6 +37,12 @@ CollisionTaskImpl::CollisionTaskImpl(YAML::Node node, const Context::ConstPtr& c
     }
   }
 
+  if (auto n = node["robot_collision_links"]) {
+    for (auto p : n) {
+      robot_links_.push_back(p.as<std::string>());
+    }
+  }
+
   if (auto n = node["env_collision_links"]) {
     for (auto p : n) {
       env_links_.push_back(p.as<std::string>());
@@ -123,6 +129,11 @@ std::list<std::pair<std::string, std::string> > CollisionTaskImpl::getWhiteList(
   return pairs_;
 }
 
+std::vector<std::string> CollisionTaskImpl::getRobotWhiteList() const
+{
+  return robot_links_;
+}
+
 std::list<std::string> CollisionTaskImpl::getEnvironmentWhiteList() const
 {
   return env_links_;
@@ -156,7 +167,7 @@ OpenSotCollisionConstraintAdapter::OpenSotCollisionConstraintAdapter(const Const
 {
   ci_collision_task_ = std::dynamic_pointer_cast<CollisionTaskImpl>(ci_task);
   if(!ci_collision_task_) throw std::runtime_error("Provided task description "
-                                         "does not have expected type 'CollisionTask'");
+                                                   "does not have expected type 'CollisionTask'");
 }
 
 OpenSoT::OptvarHelper::VariableVector OpenSotCollisionConstraintAdapter::getRequiredVariables() const
@@ -169,14 +180,16 @@ ConstraintPtr OpenSotCollisionConstraintAdapter::constructConstraint()
   Eigen::VectorXd q;
   _model->getJointPosition(q);
 
-  std::vector<std::string> interested_links{"link1", "link2"};
+  std::string base_link = "base_link";
   std::map<std::string, boost::shared_ptr<fcl::CollisionObjectd>> env_collisions;
+
+  //computer_ = boost::make_shared<ComputeLinksDistance>(const_cast<XBot::ModelInterface&>(*_model));
 
   opensot_collision_ptr_ = boost::make_shared<CollisionConstrSoT>(
       q,
-      *_model,
-      "base_link",
-      interested_links,
+      const_cast<XBot::ModelInterface&>(*_model),
+      base_link,
+      ci_collision_task_->getRobotWhiteList(),
       env_collisions
   );
 
@@ -186,26 +199,23 @@ ConstraintPtr OpenSotCollisionConstraintAdapter::constructConstraint()
   opensot_collision_ptr_->setDetectionThreshold(0.05);  // hardcoded!
 
   // set whitelist if available
-  auto whitelist = ci_collision_task_->getWhiteList();
-  if(!whitelist.empty())
-  {
-    opensot_collision_ptr_->setCollisionWhiteList(whitelist);
-  }
+  //auto whitelist = ci_collision_task_->getWhiteList();
+  //if (!whitelist.empty()) {
+  //opensot_collision_ptr_->setCollisionWhiteList(whitelist);
+  //}
 
   // set link-env collisions
-  auto env_whitelist = ci_collision_task_->getEnvironmentWhiteList();
-  if(!env_whitelist.empty())
-  {
-    opensot_collision_ptr_->setLinksVsEnvironment(env_whitelist);
-  }
+  //auto env_whitelist = ci_collision_task_->getEnvironmentWhiteList();
+  //if (!env_whitelist.empty()) {
+  //  opensot_collision_ptr_->setLinksVsEnvironment(env_whitelist);
+  //}
 
   // register world update function
-  auto on_world_upd = [this](const moveit_msgs::PlanningSceneWorld& psw)
-  {
-    opensot_collision_ptr_->setWorldCollisions(psw);
-  };
-
-  ci_collision_task_->registerWorldUpdateCallback(on_world_upd);
+  //auto on_world_upd = [this](const moveit_msgs::PlanningSceneWorld& psw)
+  //{
+  //  opensot_collision_ptr_->setWorldCollisions(psw);
+  //};
+  //ci_collision_task_->registerWorldUpdateCallback(on_world_upd);
 
   return opensot_collision_ptr_;
 }
@@ -214,7 +224,7 @@ void OpenSotCollisionConstraintAdapter::update(double time, double period)
 {
   OpenSotConstraintAdapter::update(time, period);
 
-  ci_collision_task_->setLinkPairDistances(_opensot_coll->getLinkPairDistances());
+  ci_collision_task_->setLinkPairDistances(opensot_collision_ptr_->getLinkDistances(0.05));
 }
 
 void OpenSotCollisionConstraintAdapter::processSolution(const Eigen::VectorXd &solution)
@@ -223,15 +233,14 @@ void OpenSotCollisionConstraintAdapter::processSolution(const Eigen::VectorXd &s
 }
 
 
-
-CollisionRos::CollisionRos(TaskDescription::Ptr task,
-                           RosContext::Ptr context):
+CollisionRos::CollisionRos(const TaskDescription::Ptr& task, const RosContext::Ptr& context):
     TaskRos(task, context)
 {
   ci_collision_task_ = std::dynamic_pointer_cast<CollisionTaskImpl>(task);
 
-  if(!ci_collision_task_) throw std::runtime_error("Provided task description "
-                                         "does not have expected type 'CollisionTask'");
+  if (!ci_collision_task_) throw std::runtime_error(
+        "Provided task description does not have expected type 'CollisionTask'"
+    );
 
   auto nh = ros::NodeHandle(context->nh().getNamespace() + "/" + task->getName());
 
@@ -243,8 +252,7 @@ CollisionRos::CollisionRos(TaskDescription::Ptr task,
   _ps->startMonitor();
 
 
-  _visualize_distances = nh.param("visulize_distances", true);
-
+  _visualize_distances = nh.param("visualize_distances", true);
 
   _world_upd_srv = nh.advertiseService("apply_planning_scene",
                                        &CollisionRos::apply_planning_scene_service,
@@ -285,7 +293,7 @@ void XBot::Cartesian::collision::CollisionRos::run(ros::Time time)
 
     visualization_msgs::Marker marker;
     marker.header.frame_id = "ci/world";
-    marker.header.stamp = ros::Time().now();
+    marker.header.stamp = ros::Time::now();
     marker.id = 0;
     marker.type = visualization_msgs::Marker::LINE_LIST;
     marker.action = visualization_msgs::Marker::ADD;
@@ -304,20 +312,17 @@ void XBot::Cartesian::collision::CollisionRos::run(ros::Time time)
     marker.scale.y = 0.;
     marker.scale.z = 0.;
 
-    for(const auto& data : distance_list)
-    {
+    for (const auto& data : distance_list) {
       auto k2p = [](const KDL::Vector &k)->geometry_msgs::Point{
         geometry_msgs::Point p;
         p.x = k[0]; p.y = k[1]; p.z = k[2];
         return p;
       };
 
-
-
       // closest point on first link
-      marker.points.push_back(k2p(data.getClosestPoints().first.p));
+      marker.points.push_back(k2p(data.getLink_T_closestPoint().first.p));
       // closest point on second link
-      marker.points.push_back(k2p(data.getClosestPoints().second.p));
+      marker.points.push_back(k2p(data.getLink_T_closestPoint().second.p));
     }
     _vis_pub.publish(marker);
   }
